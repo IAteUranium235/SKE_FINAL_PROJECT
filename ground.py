@@ -32,7 +32,7 @@ class Ground:
             [ hw, 0,  hd, 1],
             [-hw, 0,  hd, 1],
         ]
-        # ✅ สลับ winding order ให้หันหน้าขึ้น
+        # ✅ แค่ 2 face — double_sided จะวาดได้จากทุกมุมโดยไม่ต้องซ้ำ face
         faces = [
             [0, 2, 1],
             [0, 3, 2],
@@ -40,6 +40,8 @@ class Ground:
         color_faces = [(self.color, face) for face in faces]
         obj = Object3D(self.render, vertexes, faces, color_faces)
         obj.matrix = translate([x, y, z])
+        obj.skip_frustum_check = True  # ground ไม่ต้องเช็ค frustum
+        obj.double_sided = True        # ✅ วาดได้จากทุกมุม ไม่ถูก cull
         return obj
 
     def resolve_player(self, player, hitbox):
@@ -48,10 +50,9 @@ class Ground:
             return False
 
         feet_offset = 1.5
-        feet_y      = player.position[1] - feet_offset
-        prev_feet   = getattr(player, '_prev_y', feet_y + 0.1) - feet_offset
+        feet_y    = player.position[1] - feet_offset
+        prev_feet = getattr(player, '_prev_y', feet_y + 0.1) - feet_offset
 
-        # ✅ ตกทะลุพื้น
         if prev_feet >= self.max_y and feet_y <= self.max_y:
             if player.velocity_y <= 0:
                 player.position[1] = self.max_y + feet_offset
@@ -59,14 +60,7 @@ class Ground:
                 player.is_grounded = True
                 return True
 
-        # ✅ เพิ่ม tolerance จาก 0.05 เป็น 0.15 กัน floating point
         if feet_y <= self.max_y + 0.15 and feet_y >= self.max_y - 0.15 and player.velocity_y <= 0:
-            player.position[1] = self.max_y + feet_offset
-            player.velocity_y  = 0
-            player.is_grounded = True
-            return True
-
-        if abs(feet_y - self.max_y) < 0.05 and player.velocity_y <= 0:
             player.position[1] = self.max_y + feet_offset
             player.velocity_y  = 0
             player.is_grounded = True

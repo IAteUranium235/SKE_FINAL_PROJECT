@@ -19,8 +19,10 @@ class Object3D:
             self.color_faces = [(pg.Color('white'), face) for face in self.faces]
         self.movement_flag, self.draw_vertexes = True, False
         self.label = ''
-        self._cache_bounds() 
-        
+        self.skip_frustum_check = False
+        self.double_sided = False  # ✅ ปิด backface culling สำหรับ ground/plane
+        self._cache_bounds()
+
     def _cache_bounds(self):
         center = np.mean(self.vertexes[:, :3], axis=0)
         self._local_center = np.append(center, 1.0)
@@ -30,17 +32,16 @@ class Object3D:
     def is_in_frustum(self, camera):
         center_world = self._local_center @ self.matrix
         center_cam   = center_world @ camera.camera_matrix()
-
         if center_cam[2] + self._bounding_radius < camera.near_plane:
             return False
         if center_cam[2] - self._bounding_radius > camera.far_plane:
             return False
-
         return True
-    
+
     def draw(self, pool=None):
-        if not self.is_in_frustum(self.render.camera):  # ✅ ตัดก่อนวาด
-            return
+        if not self.skip_frustum_check:
+            if not self.is_in_frustum(self.render.camera):
+                return
         self.screen_projection(pool)
 
     def movement(self):
@@ -51,7 +52,7 @@ class Object3D:
         if pool is None:
             pool = self.render.polygon_pool
 
-        world_vertexes = self.vertexes @ self.matrix
+        world_vertexes  = self.vertexes @ self.matrix
         camera_vertexes = world_vertexes @ self.render.camera.camera_matrix()
         vertexes = camera_vertexes @ self.render.projection.projection_matrix
 
@@ -65,23 +66,23 @@ class Object3D:
 
         # near plane
         z_vals = camera_vertexes[faces, 2]
-        valid = ~np.any(z_vals < 0.1, axis=1)
+        valid  = ~np.any(z_vals < 0.1, axis=1)
 
-        # backface culling
+        # backface culling — ข้ามถ้า double_sided = True
         polys = vertexes[faces]
         v0, v1, v2 = polys[:, 0], polys[:, 1], polys[:, 2]
         area = (v1[:, 0] - v0[:, 0]) * (v2[:, 1] - v0[:, 1]) - \
-            (v1[:, 1] - v0[:, 1]) * (v2[:, 0] - v0[:, 0])
-        valid &= (area >= 0)
+               (v1[:, 1] - v0[:, 1]) * (v2[:, 0] - v0[:, 0])
+        if not self.double_sided:
+            valid &= (area >= 0)
 
         # off-screen culling
         W, H = self.render.WIDTH, self.render.HEIGHT
         px, py = polys[:, :, 0], polys[:, :, 1]
         offscreen = (np.all(px < 0, axis=1) | np.all(px > W, axis=1) |
-                    np.all(py < 0, axis=1) | np.all(py > H, axis=1))
+                     np.all(py < 0, axis=1) | np.all(py > H, axis=1))
         valid &= ~offscreen
 
-        # ✅ โยนลง pool ครั้งเดียว ไม่มี for loop
         depths = np.mean(z_vals, axis=1)
         colors = [cf[0] for cf in self.color_faces]
 
@@ -89,7 +90,7 @@ class Object3D:
             {'depth': depths[i], 'color': colors[i], 'points': polys[i]}
             for i in np.where(valid)[0]
         ])
-        
+
     def translate(self, pos):
         self.vertexes = self.vertexes @ translate(pos)
 

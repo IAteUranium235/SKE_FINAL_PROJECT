@@ -1,6 +1,7 @@
 import pygame as pg
 import numpy as np
 import math
+from map import GRID_ORIGIN_X, GRID_ORIGIN_Z, CELL_SIZE, GRID_ROWS, GRID_COLS
 from matrix_function import *
 from animation import Animation
 from hitbox import Hitbox
@@ -40,7 +41,25 @@ class Player:
         if self.current_anim.name != name:
             self.current_anim = self.animations[name]
 
+    def get_grid_position(self):
+        """คืน (row, col) ของ grid ที่ player ยืนอยู่ หรือ None ถ้าอยู่นอก grid"""
+        half_w = CELL_SIZE * GRID_COLS / 2
+        half_h = CELL_SIZE * GRID_ROWS / 2
+        lx = self.position[0] - (GRID_ORIGIN_X - half_w)
+        lz = self.position[2] - (GRID_ORIGIN_Z - half_h)
+        col = int(lx / CELL_SIZE)
+        row = int(lz / CELL_SIZE)
+        if 0 <= row < GRID_ROWS and 0 <= col < GRID_COLS:
+            return (row, col)
+        return None
+
     def update(self, dt):
+        # print grid position เฉพาะตอนเปลี่ยน
+        grid_pos = self.get_grid_position()
+        if not hasattr(self, '_prev_grid') or grid_pos != self._prev_grid:
+            print(f"[Player] grid: {grid_pos}")
+            self._prev_grid = grid_pos
+
         keys = pg.key.get_pressed()
         is_moving = False
         move_speed = 0.2 * dt * 60

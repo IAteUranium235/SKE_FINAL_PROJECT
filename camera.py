@@ -11,7 +11,7 @@ class Camera:
         self.h_fov = math.pi / 3
         self.v_fov = self.h_fov * (render.HEIGHT / render.WIDTH)
         self.near_plane = 0.1
-        self.far_plane = 100
+        self.far_plane = 300
         self.moving_speed = 10
         self.rotation_speed = 0.01
         self.pitch = 0
