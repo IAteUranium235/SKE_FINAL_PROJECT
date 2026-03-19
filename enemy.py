@@ -211,6 +211,12 @@ class Enemy:
         sx    = int(proj[0] * self.render.H_WIDTH  + self.render.H_WIDTH)
         sy    = int(-proj[1] * self.render.H_HEIGHT + self.render.H_HEIGHT)
         scale = self.render.H_WIDTH / cam_pos[2]
+        w_half = int(self.width  * scale / 2)
+        h_half = int(self.height * scale / 2)
+        # ถ้าอยู่นอกจอทั้งหมด — ไม่วาด
+        W, H = self.render.WIDTH, self.render.HEIGHT
+        if sx + w_half < 0 or sx - w_half > W or sy + h_half < 0 or sy - h_half > H:
+            return
         w     = max(1, int(self.width  * scale))
         h     = max(1, int(self.height * scale))
 

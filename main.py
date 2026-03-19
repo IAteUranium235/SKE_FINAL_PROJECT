@@ -47,7 +47,7 @@ class SoftwareRender:
             ]
         for i in range(len(self.placement_grid)):
             for j in range(len(self.placement_grid[i])):
-                self.placement_grid[i][j] = Tower(self,filepath='resource/Turret.obj', col=j, row=i,damage=1)
+                self.placement_grid[i][j] = Tower(self,filepath='resource/Turret.obj', col=j, row=i,damage=5,fire_rate=5)
         self.walls      = []
         self.grounds    = []
         self.billboards = []
@@ -235,8 +235,7 @@ class SoftwareRender:
 
         #for turret in self.testlag:
         #    turret.draw()
-        for b in self.billboards:
-            b.push_to_pool()             # billboard → pool
+                  
                       
         self._flush_pool()               # 1. flush map + turret + billboard
         self.polygon_pool.clear()
@@ -247,10 +246,13 @@ class SoftwareRender:
         for row in self.placement_grid:
             for turret in row:
                 if turret:
-                    turret.draw() 
+                    turret.draw()
+         
         self._flush_pool()               # 2. flush enemy
         self.polygon_pool.clear()
         self.player.draw()               # player → pool แยก
+        for b in self.billboards:
+            b.draw()  
         self._flush_pool()               # 3. flush player
         self.inventory.draw_hud(self.screen)
         self.interact.draw_hud(self.screen)
