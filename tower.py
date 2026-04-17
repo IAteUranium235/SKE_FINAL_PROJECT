@@ -84,8 +84,8 @@ class Tower:
         if grid and 0 <= self.row < len(grid) and 0 <= self.col < len(grid[0]):
             self.render.placement_grid[self.row][self.col] = None
         # ลบออกจาก towers list
-        if self in self.render.towers:
-            self.render.towers.remove(self)
+        #if self in self.render.towers:
+        #    self.render.towers.remove(self)
 
     # =========================================================
     # DRAW

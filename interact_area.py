@@ -120,6 +120,14 @@ def teleport(destination):
     return callback
 
 
+def open_shop(render):
+    """เปิด/ปิด ShopGUI"""
+    def callback(player):
+        if hasattr(render, 'shop_gui') and not render.shop_gui.is_open:
+            render.shop_gui.toggle()
+    return callback
+
+
 def custom(func):
     """ใส่ function เองได้เลย — func(player)"""
     return func

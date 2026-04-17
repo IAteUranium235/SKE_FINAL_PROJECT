@@ -24,6 +24,8 @@ class Player:
             part.movement_flag = False
 
         # ฟิสิกส์ — gravity และ velocity จัดการใน main.update() แทน
+        self.gold        = 200
+
         self.velocity_y  = 0.0
         self.gravity     = -0.005
         self.jump_power  = 0.15
@@ -54,18 +56,12 @@ class Player:
         return None
 
     def update(self, dt):
-        # print grid position เฉพาะตอนเปลี่ยน
-        grid_pos = self.get_grid_position()
-        if not hasattr(self, '_prev_grid') or grid_pos != self._prev_grid:
-            print(f"[Player] grid: {grid_pos}")
-            self._prev_grid = grid_pos
-
         keys = pg.key.get_pressed()
         is_moving = False
         move_speed = 0.2 * dt * 60
 
         mouse_dx, _ = pg.mouse.get_rel()
-        if abs(mouse_dx) > 2:
+        if getattr(self.render, "_mouse_locked", True) and abs(mouse_dx) > 2:
             self.angle_y += mouse_dx * 0.002
 
         if keys[pg.K_w]:
@@ -121,6 +117,11 @@ class Player:
 
         self.head.matrix = translate([0, 0.6 + bob, 0]) @ player_matrix
         self.body.matrix = translate([0, bob * 0.5,  0]) @ player_matrix
+
+        # ถ้าถือ wrench — override arm_l ให้ยกขึ้นข้างหน้า
+        item = getattr(getattr(self, 'render', None), 'inventory', None)
+        if item and hasattr(item, 'current') and item.current and item.current.name == 'Wrench':
+            self.arm_l.matrix = rotate_x(-1.2) @ translate([0.18, 0.3, 0]) @ player_matrix
 
 
     def draw(self):

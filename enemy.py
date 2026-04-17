@@ -137,7 +137,7 @@ class Enemy:
             # หยุดที่ขอบซ้ายของ cell (ก่อนเข้า cell ที่มี tower)
             stop_x = grid_left_x + col * CELL_SIZE
             if self.position[0] >= stop_x:
-                self.position[0] = stop_x  # snap ไปที่ขอบ
+                #self.position[0] = stop_x  # snap ไปที่ขอบ
                 self.stopped = True
         else:
             self.stopped = False

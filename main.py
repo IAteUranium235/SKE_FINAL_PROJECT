@@ -11,8 +11,9 @@ from billboard import Billboard
 from inventory import Inventory
 from weapon import Weapon
 from wrench import Wrench
-from interact_area import InteractArea, InteractManager, speed_boost
+from interact_area import InteractArea, InteractManager, open_shop
 from hud import *
+from hud import ShopGUI
 from enemy import *
 from map import *
 from tower import *
@@ -37,7 +38,7 @@ class SoftwareRender:
         self.player     = Player(self, PLAYER_SPAWN)
         
         self.map        = Map(self)
-        tower1 = Tower(self,filepath='resource/Turret.obj', col=2, row=2)
+        #tower1 = Tower(self,filepath='resource/Turret.obj', col=2, row=2)
         self.placement_grid = [
             [None, None, None, None, None, None],
             [None, None, None, None, None, None],
@@ -45,9 +46,9 @@ class SoftwareRender:
             [None, None, None, None, None, None],
             [None, None, None, None, None, None]
             ]
-        for i in range(len(self.placement_grid)):
-            for j in range(len(self.placement_grid[i])):
-                self.placement_grid[i][j] = Tower(self,filepath='resource/Turret.obj', col=j, row=i,damage=5,fire_rate=5)
+        #for i in range(len(self.placement_grid)):
+        #    for j in range(len(self.placement_grid[i])):
+        #        self.placement_grid[i][j] = Tower(self,filepath='resource/Turret.obj', col=j, row=i,damage=5,fire_rate=5)
         self.walls      = []
         self.grounds    = []
         self.billboards = []
@@ -62,10 +63,6 @@ class SoftwareRender:
             self.testlag[i].skip_frustum_check = True"""
         #self.turret.double_sided = True
         #self.turret.skip_frustum_check = True
-        #self.test1 = self.load_obj()
-        #self.test2 = self.load_obj()
-        #self.test3 = self.load_obj()
-        self.towers = []
         self.enemies = [
             [],
             [],
@@ -83,25 +80,28 @@ class SoftwareRender:
             []
             
         ]
-        for i in range(len(self.enemies)):
-            for j in range(15):
-                self.enemies[i].append(
-                    Enemy(self, position=[SPAWN_POSITION[0], 0, 0], waypoints=[[BASE_POSITION[0], 0, 0]],
-                hp=100, walk_speed=0.02 + j/1000, damage=1, reward=20
-                ,image_path="image/boss.png",width=6,height=6,lane=i)
-                )
+        #for i in range(len(self.enemies)):
+        #    for j in range(15):
+        #        self.enemies[i].append(
+        #            Enemy(self, position=[SPAWN_POSITION[0], 0, 0], waypoints=[[BASE_POSITION[0], 0, 0]],
+        #        hp=100, walk_speed=0.02 + j/1000, damage=1, reward=20
+        #        ,image_path="image/boss.png",width=6,height=6,lane=i)
+        #        )
                 
         # self.billboards.append(Billboard(self, "cat.jpg", [0, 1, 0]))
         self.billboards.append(Billboard(self, "shopkeepe.png", [0, 1, -20], width=7, height=7))
         self._sky_surface = self._build_sky_surface()
+
+        self.shop_gui   = ShopGUI(self)
 
         self.interact   = InteractManager()
         self.interact.add(InteractArea(
             position=[0, 0, -16],
             radius=4.0,
             key=pg.K_e,
-            callback=speed_boost(amount=0.15, duration=5.0),
-            label='[E] Speed Boost (5s)'
+            callback=open_shop(self),
+            label='[E] Open Shop',
+            cooldown=0.5,
         ))
 
         self.inventory  = Inventory(self.player)
@@ -192,9 +192,11 @@ class SoftwareRender:
             self.player.velocity_y  = 0
             self.player.is_grounded = True
 
-        self.player.update(self.dt)
-        self.inventory.update(self.dt)
-        self.interact.update(self.player, self.dt)
+        self.shop_gui.update(self.dt)
+        if not self.shop_gui.is_open:
+            self.player.update(self.dt)
+            self.inventory.update(self.dt)
+            self.interact.update(self.player, self.dt)
 
         self.update_camera()
 
@@ -229,36 +231,42 @@ class SoftwareRender:
         self.polygon_pool.clear()
         self.update()
 
-        self._draw_flat_ground()         # พื้น 2D ก่อนสุด
-        self.map.draw()                  # map → pool
+        self._draw_flat_ground()         
+        self.map.draw()                  
         
 
         #for turret in self.testlag:
         #    turret.draw()
                   
                       
-        self._flush_pool()               # 1. flush map + turret + billboard
+        self._flush_pool()             
         self.polygon_pool.clear()
         for row in self.enemies:
             for e in row:
-                e.push_to_pool()             # enemy → pool แยก
+                e.push_to_pool()           
         # self.boss.draw()  
         for row in self.placement_grid:
             for turret in row:
                 if turret:
-                    turret.draw()
-         
-        self._flush_pool()               # 2. flush enemy
+                    turret.draw()  
+        self._flush_pool()            
         self.polygon_pool.clear()
-        self.player.draw()               # player → pool แยก
+        
+        self.player.draw()
+        item = self.inventory.current
+        if hasattr(item, 'draw'):
+            item.draw() 
+                         
         for b in self.billboards:
             b.draw()  
-        self._flush_pool()               # 3. flush player
+        self._flush_pool()               
+        
         self.inventory.draw_hud(self.screen)
         self.interact.draw_hud(self.screen)
         self.crosshair.draw()
         if self.pause_menu.is_open:
             self.pause_menu.draw()
+        self.shop_gui.draw()
 
     def _draw_flat_ground(self):
         forward = self.camera.forward[:3]
@@ -318,8 +326,13 @@ class SoftwareRender:
                     self.pause_menu.toggle()
                 if event.type == pg.KEYDOWN and event.key == pg.K_TAB:
                     self._set_mouse_lock(not self._mouse_locked)
+                if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+                    item = self.inventory.current
+                    if hasattr(item, 'handle_click'):
+                        item.handle_click()
                 self.inventory.handle_event(event)
                 self.pause_menu.handle_event(event)
+                self.shop_gui.handle_event(event)
             self.draw()
             self.clock.tick(self.FPS)
             pg.display.flip()

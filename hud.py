@@ -209,12 +209,6 @@ class PauseMenu:
                 return i
         return None
 
-    #def toggle(self):
-    #    self.is_open = not self.is_open
-    #    self.render._set_mouse_lock(not self.is_open)
-    #    if self.is_open:
-    #        pg.mouse.set_pos(self.render.H_WIDTH, self.render.H_HEIGHT)
-            
     def _draw_button(self, idx, label):
         rect     = self._btn_rect(idx)
         hovered  = (self._hovered == idx)
@@ -231,3 +225,145 @@ class PauseMenu:
             rect.centerx - text.get_width()//2,
             rect.centery - text.get_height()//2
         ))
+
+
+# =========================================================
+# SHOP GUI
+# =========================================================
+
+class ShopGUI:
+    ITEMS = [
+        {'name': 'Basic Tower',  'desc': 'DMG 20 | Rate 1/s',   'price': 50,  'hp': 100, 'damage': 20, 'fire_rate': 1.0},
+        {'name': 'Rapid Tower',  'desc': 'DMG 10 | Rate 3/s',   'price': 100, 'hp': 80,  'damage': 10, 'fire_rate': 3.0},
+        {'name': 'Heavy Tower',  'desc': 'DMG 50 | Rate 0.5/s', 'price': 200, 'hp': 200, 'damage': 50, 'fire_rate': 0.5},
+    ]
+
+    def __init__(self, render):
+        self.render      = render
+        self.is_open     = False
+        self._font_title = pg.font.SysFont('Arial', 32, bold=True)
+        self._font_item  = pg.font.SysFont('Arial', 20, bold=True)
+        self._font_desc  = pg.font.SysFont('Arial', 16)
+        self._font_gold  = pg.font.SysFont('Arial', 22, bold=True)
+        self._hovered    = None
+        self._msg        = ''
+        self._msg_timer  = 0.0
+        self._card_w     = 180
+        self._card_h     = 150
+        self._card_gap   = 20
+
+    def toggle(self):
+        self.is_open = not self.is_open
+        self.render._set_mouse_lock(not self.is_open)
+        if self.is_open:
+            pg.mouse.set_pos(self.render.H_WIDTH, self.render.H_HEIGHT)
+
+    def handle_event(self, event):
+        if not self.is_open:
+            return
+        if event.type == pg.KEYDOWN and event.key == pg.K_e:
+            self.toggle()
+            return
+        if event.type == pg.MOUSEMOTION:
+            self._hovered = self._get_hovered(event.pos)
+        if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+            idx = self._get_hovered(event.pos)
+            if idx is not None:
+                self._buy(idx)
+
+    def _card_rect(self, idx):
+        W, H = self.render.WIDTH, self.render.HEIGHT
+        total_w = len(self.ITEMS) * self._card_w + (len(self.ITEMS) - 1) * self._card_gap
+        start_x = W // 2 - total_w // 2
+        x = start_x + idx * (self._card_w + self._card_gap)
+        y = H // 2 - self._card_h // 2 + 20
+        return pg.Rect(x, y, self._card_w, self._card_h)
+
+    def _get_hovered(self, pos):
+        for i in range(len(self.ITEMS)):
+            if self._card_rect(i).collidepoint(pos):
+                return i
+        return None
+
+    def _buy(self, idx):
+        item   = self.ITEMS[idx]
+        player = self.render.player
+        if player.gold < item['price']:
+            self._msg       = 'Not enough gold!'
+            self._msg_timer = 2.0
+            return
+        grid = self.render.placement_grid
+        for r in range(len(grid)):
+            for c in range(len(grid[r])):
+                if grid[r][c] is None:
+                    from tower import Tower
+                    grid[r][c] = Tower(
+                        self.render, row=r, col=c,
+                        filepath='resource/Turret.obj',
+                        hp=item['hp'],
+                        damage=item['damage'],
+                        fire_rate=item['fire_rate'],
+                    )
+                    player.gold    -= item['price']
+                    self._msg       = f"Placed {item['name']}!"
+                    self._msg_timer = 2.0
+                    return
+        self._msg       = 'No empty grid slots!'
+        self._msg_timer = 2.0
+
+    def update(self, dt):
+        if self._msg_timer > 0:
+            self._msg_timer = max(0.0, self._msg_timer - dt)
+
+    def draw(self):
+        if not self.is_open:
+            return
+        W, H   = self.render.WIDTH, self.render.HEIGHT
+        screen = self.render.screen
+
+        overlay = pg.Surface((W, H), pg.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        screen.blit(overlay, (0, 0))
+
+        title = self._font_title.render('SHOP', True, (255, 215, 0))
+        screen.blit(title, (W // 2 - title.get_width() // 2, H // 2 - 150))
+
+        gold_text = self._font_gold.render(f'Gold: {self.render.player.gold}', True, (255, 215, 0))
+        screen.blit(gold_text, (W // 2 - gold_text.get_width() // 2, H // 2 - 110))
+
+        mouse_pos     = pg.mouse.get_pos()
+        self._hovered = self._get_hovered(mouse_pos)
+        for i, item in enumerate(self.ITEMS):
+            self._draw_card(i, item)
+
+        if self._msg_timer > 0 and self._msg:
+            msg_surf = self._font_gold.render(self._msg, True, (255, 120, 120))
+            screen.blit(msg_surf, (W // 2 - msg_surf.get_width() // 2, H // 2 + 120))
+
+        hint = self._font_desc.render('[E] Close', True, (160, 160, 160))
+        screen.blit(hint, (W // 2 - hint.get_width() // 2, H // 2 + 150))
+
+    def _draw_card(self, idx, item):
+        rect    = self._card_rect(idx)
+        hovered = (self._hovered == idx)
+        screen  = self.render.screen
+
+        bg = pg.Surface((rect.w, rect.h), pg.SRCALPHA)
+        bg.fill((90, 90, 140, 240) if hovered else (60, 60, 80, 220))
+        screen.blit(bg, rect.topleft)
+        pg.draw.rect(screen, (200, 200, 255) if hovered else (120, 120, 160), rect, 2, border_radius=8)
+
+        name_surf = self._font_item.render(item['name'], True, (255, 255, 255))
+        screen.blit(name_surf, (rect.centerx - name_surf.get_width() // 2, rect.y + 12))
+
+        desc_surf = self._font_desc.render(item['desc'], True, (160, 220, 160))
+        screen.blit(desc_surf, (rect.centerx - desc_surf.get_width() // 2, rect.y + 44))
+
+        price_surf = self._font_item.render(f'{item["price"]} gold', True, (255, 215, 0))
+        screen.blit(price_surf, (rect.centerx - price_surf.get_width() // 2, rect.y + 72))
+
+        btn = pg.Rect(rect.x + 20, rect.y + rect.h - 42, rect.w - 40, 30)
+        pg.draw.rect(screen, (70, 190, 70) if hovered else (50, 140, 50), btn, border_radius=5)
+        buy_text = self._font_desc.render('Buy', True, (255, 255, 255))
+        screen.blit(buy_text, (btn.centerx - buy_text.get_width() // 2,
+                                btn.centery - buy_text.get_height() // 2))
