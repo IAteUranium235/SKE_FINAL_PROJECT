@@ -403,16 +403,17 @@ class ShopGUI:
         }
         self.ITEMS = [
             {
-                'name':      k,
-                'desc':      _special_desc.get(v.get('special',''), f'DMG {v["damage"]} | Rate {v["fire_rate"]}/s'),
-                'price':     v['price'],
-                'hp':        v['hp'],
-                'damage':    v['damage'],
-                'fire_rate': v['fire_rate'],
-                'file_path': v['file_path'],
-                'offset':    v['offset'],
-                'rotate_y':  v['rotate_y'],
-                'special':   v.get('special', ''),
+                'name':         k,
+                'desc':         _special_desc.get(v.get('special',''), f'DMG {v["damage"]} | Rate {v["fire_rate"]}/s'),
+                'price':        v['price'],
+                'hp':           v['hp'],
+                'damage':       v['damage'],
+                'fire_rate':    v['fire_rate'],
+                'file_path':    v['file_path'],
+                'offset':       v['offset'],
+                'rotate_y':     v['rotate_y'],
+                'special':      v.get('special', ''),
+                'unlock_level': v.get('unlock_level', 1),
             }
             for k, v in data.items()
         ]
@@ -432,6 +433,10 @@ class ShopGUI:
         self._scroll     = 0
         self._max_vis    = 4
 
+    def _shown_items(self):
+        lvl = getattr(self.render, 'level', 1)
+        return [item for item in self.ITEMS if item['unlock_level'] <= lvl]
+
     def toggle(self):
         self.is_open = not self.is_open
         self.render._set_mouse_lock(not self.is_open)
@@ -444,8 +449,9 @@ class ShopGUI:
         if event.type == pg.KEYDOWN and event.key == pg.K_e:
             self.toggle()
             return
+        shown = self._shown_items()
         if event.type == pg.MOUSEWHEEL:
-            self._scroll = max(0, min(len(self.ITEMS) - self._max_vis, self._scroll - event.y))
+            self._scroll = max(0, min(len(shown) - self._max_vis, self._scroll - event.y))
             return
         if event.type == pg.MOUSEMOTION:
             self._hovered = self._get_hovered(event.pos)
@@ -455,14 +461,14 @@ class ShopGUI:
                 self._scroll = max(0, self._scroll - 1)
                 return
             if ra.collidepoint(event.pos):
-                self._scroll = min(len(self.ITEMS) - self._max_vis, self._scroll + 1)
+                self._scroll = min(len(shown) - self._max_vis, self._scroll + 1)
                 return
             idx = self._get_hovered(event.pos)
             if idx is not None:
                 self._buy(idx)
 
     def _visible_count(self):
-        return min(self._max_vis, len(self.ITEMS) - self._scroll)
+        return min(self._max_vis, len(self._shown_items()) - self._scroll)
 
     def _card_rect(self, vis_idx):
         W, H = self.render.WIDTH, self.render.HEIGHT
@@ -489,7 +495,7 @@ class ShopGUI:
         return None
 
     def _buy(self, idx):
-        item   = self.ITEMS[idx]
+        item   = self._shown_items()[idx]
         player = self.render.player
         if player.gold < item['price']:
             self._msg       = 'Not enough gold!'
@@ -521,16 +527,17 @@ class ShopGUI:
         gold_text = self._font_gold.render(f'Gold: {self.render.player.gold}', True, (255, 215, 0))
         screen.blit(gold_text, (W // 2 - gold_text.get_width() // 2, H // 2 - 110))
 
+        shown         = self._shown_items()
         mouse_pos     = pg.mouse.get_pos()
         self._hovered = self._get_hovered(mouse_pos)
-        visible = self.ITEMS[self._scroll : self._scroll + self._max_vis]
+        visible = shown[self._scroll : self._scroll + self._max_vis]
         for vi, item in enumerate(visible):
             self._draw_card(vi, item, self._scroll + vi)
 
         self._draw_shop_arrows(screen, W, H)
 
         # page dots
-        total = len(self.ITEMS)
+        total = len(shown)
         if total > self._max_vis:
             dot_y = H // 2 + self._card_h // 2 + 32
             dot_r = 5
@@ -553,7 +560,7 @@ class ShopGUI:
         for rect, enabled, pts_fn in [
             (la, self._scroll > 0,
              lambda r: [(r.right, r.centery), (r.left + 6, r.top + 6), (r.left + 6, r.bottom - 6)]),
-            (ra, self._scroll < len(self.ITEMS) - self._max_vis,
+            (ra, self._scroll < len(self._shown_items()) - self._max_vis,
              lambda r: [(r.left, r.centery), (r.right - 6, r.top + 6), (r.right - 6, r.bottom - 6)]),
         ]:
             col = (220, 220, 220) if enabled else (70, 70, 70)

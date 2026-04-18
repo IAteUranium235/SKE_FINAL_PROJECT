@@ -23,7 +23,8 @@ def load_turret_data(csv_path='data/turret.csv'):
                     'fire_rate': float(row['fire_rate']),
                     'range':     float(row.get('range', 0) or 999),
                     'price':     int(row['price']),
-                    'special':   row.get('special', '').strip(),
+                    'special':       row.get('special', '').strip(),
+                    'unlock_level':  int(row.get('unlock_level', 1) or 1),
                 }
     except FileNotFoundError:
         print('[Tower] turret.csv not found')
