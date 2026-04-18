@@ -1,0 +1,7 @@
+name,hp,walk_speed,damage,reward,width,height,image_path,special
+normal,450,0.015,10,20,4,4,image/boss.png,
+fast,250,0.03,5,15,3,3,cat.jpg,
+slow,1000,0.01,25,40,5,5,67_cat.png,
+car_boss,1500,0.008,40,150,7,7,car_boss.png,car_boss
+motorcycle,80,0.06,5,10,2,3,motorcy.png,
+portal_dog,120,0.035,8,30,4,4,portal_dog_1.png,portal_dog

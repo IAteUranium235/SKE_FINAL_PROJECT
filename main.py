@@ -1,33 +1,35 @@
 import pygame as pg
 import math
 import os
-from object_3d import *
-from camera import *
-from projection import *
-from player import *
-from wall import *
-from ground import *
-from billboard import Billboard
-from inventory import Inventory
-from weapon import Weapon
-from wrench import Wrench
-from interact_area import InteractArea, InteractManager, open_shop
-from hud import *
-from hud import ShopGUI
-from enemy import *
-from map import *
-from tower import *
+from core.object_3d import *
+from core.camera import *
+from core.projection import *
+from core.billboard import Billboard
+from world.wall import *
+from world.ground import *
+from world.map import *
+from world.wave_manager import WaveManager
+from entities.player import *
+from entities.enemy import *
+from entities.tower import *
+from items.inventory import Inventory
+from items.wrench import Wrench
+from ui.interact_area import InteractArea, InteractManager, open_shop
+from ui.hud import *
+from ui.hud import GameOverScreen, TowerSelectUI, VictoryScreen
+from ui.menu import MainMenu, LevelSelectScreen, SettingsScreen, load_save, unlock_next_level
 
 class SoftwareRender:
-    def __init__(self):
-        pg.init()
+    def __init__(self, screen, level=1):
         self.RES = self.WIDTH, self.HEIGHT = 800, 450
         self.H_WIDTH, self.H_HEIGHT = self.WIDTH // 2, self.HEIGHT // 2
         self.FPS = 60
-        self.screen = pg.display.set_mode(self.RES)
+        self.screen = screen
+        self.level  = level
         self.clock = pg.time.Clock()
         self.polygon_pool = []
         self._mouse_locked = True
+        self._game_result  = None
         pg.mouse.set_visible(False)
         pg.event.set_grab(True)
         self.create_objects()
@@ -36,7 +38,7 @@ class SoftwareRender:
         self.camera     = Camera(self, [0, 5, -10])
         self.projection = Projection(self)
         self.player     = Player(self, PLAYER_SPAWN)
-        
+        self.base_png = Billboard(self, 'base.png',[BASE_POSITION[0],4,BASE_POSITION[2]],20,20)
         self.map        = Map(self)
         #tower1 = Tower(self,filepath='resource/Turret.obj', col=2, row=2)
         self.placement_grid = [
@@ -63,23 +65,7 @@ class SoftwareRender:
             self.testlag[i].skip_frustum_check = True"""
         #self.turret.double_sided = True
         #self.turret.skip_frustum_check = True
-        self.enemies = [
-            [],
-            [],
-            [
-                Enemy(self, position=[SPAWN_POSITION[0], 0, 0], waypoints=[[BASE_POSITION[0], 0, 0]],
-                hp=200, walk_speed=0.04, damage=10, reward=20
-                ,image_path="cat.jpg",width=6,height=6,lane=2),
-                Enemy(self, position=[SPAWN_POSITION[0], 0, 0], waypoints=[[BASE_POSITION[0], 0, 0]],
-                hp=300, walk_speed=0.06, damage=10, reward=20
-                ,image_path="image/boss.png",width=6,height=6,lane=2)
-                ],
-            [Enemy(self, position=[SPAWN_POSITION[0], 0, 0], waypoints=[[BASE_POSITION[0], 0, 0]],
-                hp=100, walk_speed=0.08, damage=10, reward=20
-                ,image_path="image/boss.png",width=6,height=6,lane=3)],
-            []
-            
-        ]
+        self.enemies = [[], [], [], [], []]
         #for i in range(len(self.enemies)):
         #    for j in range(15):
         #        self.enemies[i].append(
@@ -105,11 +91,18 @@ class SoftwareRender:
         ))
 
         self.inventory  = Inventory(self.player)
-        self.inventory.add(1, Weapon(self.player))
-        self.inventory.add(2, Wrench(self.player))
+        self.inventory.add(1, Wrench(self.player))
         self.inventory.equip(1)
-        self.crosshair  = Crosshair(self)
-        self.pause_menu = PauseMenu(self)
+        self.crosshair       = Crosshair(self)
+        self.pause_menu      = PauseMenu(self)
+        self.damage_numbers   = []
+        self.base_hp          = 300
+        self.base_max_hp      = 300
+        self.game_over_screen = GameOverScreen(self)
+        self.victory_screen   = VictoryScreen(self)
+        self.tower_select_ui  = TowerSelectUI(self)
+        self.wave_manager     = WaveManager(self)
+        self.wave_manager.start()
 
     def _build_sky_surface(self):
         top    = (30,  60, 114)
@@ -192,8 +185,18 @@ class SoftwareRender:
             self.player.velocity_y  = 0
             self.player.is_grounded = True
 
+        if self.base_hp <= 0 and not self.game_over_screen.is_open:
+            self.game_over_screen.open()
+        if self.wave_manager.finished and not self.victory_screen.is_open:
+            self.victory_screen.open()
+
         self.shop_gui.update(self.dt)
-        if not self.shop_gui.is_open:
+        self.tower_select_ui.update(self.dt)
+        self.wave_manager.update(self.dt)
+        _ui_open = (self.shop_gui.is_open or self.game_over_screen.is_open
+                    or self.victory_screen.is_open
+                    or self.tower_select_ui.any_open)
+        if not _ui_open:
             self.player.update(self.dt)
             self.inventory.update(self.dt)
             self.interact.update(self.player, self.dt)
@@ -251,7 +254,7 @@ class SoftwareRender:
                     turret.draw()  
         self._flush_pool()            
         self.polygon_pool.clear()
-        
+        self.base_png.draw()
         self.player.draw()
         item = self.inventory.current
         if hasattr(item, 'draw'):
@@ -261,12 +264,19 @@ class SoftwareRender:
             b.draw()  
         self._flush_pool()               
         
+        self._draw_damage_numbers()
         self.inventory.draw_hud(self.screen)
         self.interact.draw_hud(self.screen)
         self.crosshair.draw()
+        self._draw_base_hp_bar()
+        self._draw_gold_hud()
+        self.wave_manager.draw_hud(self.screen)
         if self.pause_menu.is_open:
             self.pause_menu.draw()
         self.shop_gui.draw()
+        self.tower_select_ui.draw()
+        self.game_over_screen.draw()
+        self.victory_screen.draw()
 
     def _draw_flat_ground(self):
         forward = self.camera.forward[:3]
@@ -294,6 +304,60 @@ class SoftwareRender:
             pg.draw.rect(self.screen, (101, 139, 70),
                          (0, horizon_y, self.WIDTH, self.HEIGHT - horizon_y))
 
+    def _draw_gold_hud(self):
+        if not hasattr(self, '_gold_font'):
+            self._gold_font = pg.font.SysFont('Arial', 20, bold=True)
+        text = self._gold_font.render(f'Gold: {self.player.gold}', True, (255, 215, 0))
+        shadow = self._gold_font.render(f'Gold: {self.player.gold}', True, (0, 0, 0))
+        x = self.WIDTH - text.get_width() - 10
+        self.screen.blit(shadow, (x + 1, 11))
+        self.screen.blit(text,   (x,     10))
+
+    def _draw_damage_numbers(self):
+        if not hasattr(self, '_dmg_font'):
+            self._dmg_font = pg.font.SysFont('Arial', 17, bold=True)
+        cam_mat  = self.camera.camera_matrix()
+        proj_mat = self.projection.projection_matrix
+        alive = []
+        for dn in self.damage_numbers:
+            dn['timer'] -= self.dt
+            if dn['timer'] <= 0:
+                continue
+            alive.append(dn)
+            t   = 1.0 - dn['timer'] / dn['max_timer']   # 0→1 ตามเวลาผ่านไป
+            wy  = dn['y'] + t * 2.5                      # ลอยขึ้น 2.5 world units
+            wp  = np.array([dn['x'], wy, dn['z'], 1.0])
+            cp  = wp @ cam_mat
+            if cp[2] < 0.1:
+                continue
+            pp  = cp @ proj_mat
+            if abs(pp[3]) < 1e-6:
+                continue
+            pp /= pp[3]
+            sx  = int(pp[0] * self.H_WIDTH  + self.H_WIDTH)
+            sy  = int(-pp[1] * self.H_HEIGHT + self.H_HEIGHT)
+            if sx < -60 or sx > self.WIDTH + 60 or sy < -30 or sy > self.HEIGHT + 30:
+                continue
+            alpha = int(255 * (dn['timer'] / dn['max_timer']))
+            surf  = self._dmg_font.render(f'-{dn["value"]}', True, (255, 80, 80))
+            surf.set_alpha(alpha)
+            self.screen.blit(surf, (sx - surf.get_width() // 2, sy - surf.get_height() // 2))
+        self.damage_numbers = alive
+
+    def _draw_base_hp_bar(self):
+        if not hasattr(self, '_hp_font'):
+            self._hp_font = pg.font.SysFont('Arial', 16, bold=True)
+        bar_w, bar_h = 200, 18
+        x, y = 10, 10
+        frac = max(0.0, self.base_hp / self.base_max_hp)
+        pg.draw.rect(self.screen, (60, 20, 20),  (x, y, bar_w, bar_h))
+        r = int(255 * (1 - frac))
+        g = int(200 * frac)
+        pg.draw.rect(self.screen, (r, g, 0), (x, y, int(bar_w * frac), bar_h))
+        pg.draw.rect(self.screen, (200, 200, 200), (x, y, bar_w, bar_h), 2)
+        label = self._hp_font.render(f'Base HP  {self.base_hp}/{self.base_max_hp}', True, (255, 255, 255))
+        self.screen.blit(label, (x + 4, y + 1))
+
     def _flush_pool(self):
         """flush polygon_pool — รองรับทั้ง polygon และ billboard"""
         self.polygon_pool.sort(key=lambda x: x['depth'], reverse=True)
@@ -317,27 +381,107 @@ class SoftwareRender:
         pg.event.set_grab(locked)
  
     def run(self):
-        while True:
+        while self._game_result is None:
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     pg.quit()
                     exit()
+                _select_was_open = self.tower_select_ui.any_open
+                self.tower_select_ui.handle_event(event)
                 if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
-                    self.pause_menu.toggle()
+                    if not _select_was_open:
+                        self.pause_menu.toggle()
                 if event.type == pg.KEYDOWN and event.key == pg.K_TAB:
                     self._set_mouse_lock(not self._mouse_locked)
                 if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
-                    item = self.inventory.current
-                    if hasattr(item, 'handle_click'):
-                        item.handle_click()
+                    if (not self.tower_select_ui.any_open
+                            and not self.tower_select_ui._click_consumed
+                            and not self.shop_gui.is_open):
+                        item = self.inventory.current
+                        if hasattr(item, 'handle_click'):
+                            item.handle_click()
                 self.inventory.handle_event(event)
                 self.pause_menu.handle_event(event)
                 self.shop_gui.handle_event(event)
+                self.game_over_screen.handle_event(event)
+                self.victory_screen.handle_event(event)
             self.draw()
             self.clock.tick(self.FPS)
             pg.display.flip()
+        return self._game_result
+
+
+# =========================================================
+# APP — manages menu states and launches the game
+# =========================================================
+
+class App:
+    def __init__(self):
+        pg.init()
+        pg.display.set_caption('Tower Defense 3D')
+        self.W, self.H = 800, 450
+        self.screen = pg.display.set_mode((self.W, self.H))
+        self.clock  = pg.time.Clock()
+        self.state  = 'menu'
+        self.selected_level = 1
+        self.main_menu      = MainMenu(self.screen, self.W, self.H)
+        self.level_select   = LevelSelectScreen(self.screen, self.W, self.H)
+        self.settings_scr   = SettingsScreen(self.screen, self.W, self.H)
+
+    def run(self):
+        while True:
+            self.clock.tick(60)
+            events = pg.event.get()
+            for e in events:
+                if e.type == pg.QUIT:
+                    pg.quit(); exit()
+
+            if self.state == 'menu':
+                self._state_menu(events)
+            elif self.state == 'level_select':
+                self._state_level_select(events)
+            elif self.state == 'settings':
+                self._state_settings(events)
+            elif self.state == 'playing':
+                self._state_playing()
+
+            pg.display.flip()
+
+    def _state_menu(self, events):
+        self.main_menu.draw()
+        for e in events:
+            action = self.main_menu.handle_event(e)
+            if action == 'play':      self.state = 'level_select'
+            elif action == 'settings': self.state = 'settings'
+            elif action == 'exit':     pg.quit(); exit()
+
+    def _state_level_select(self, events):
+        save = load_save()
+        self.level_select.draw(save['unlocked'])
+        for e in events:
+            result = self.level_select.handle_event(e, save['unlocked'])
+            if result == 'back':
+                self.state = 'menu'
+            elif isinstance(result, int):
+                self.selected_level = result
+                self.state = 'playing'
+
+    def _state_settings(self, events):
+        self.settings_scr.draw()
+        for e in events:
+            result = self.settings_scr.handle_event(e)
+            if result == 'back':
+                self.state = 'menu'
+
+    def _state_playing(self):
+        game = SoftwareRender(self.screen, self.selected_level)
+        result = game.run()
+        pg.mouse.set_visible(True)
+        pg.event.set_grab(False)
+        if result == 'victory':
+            unlock_next_level(self.selected_level)
+        self.state = 'level_select'
 
 
 if __name__ == '__main__':
-    app = SoftwareRender()
-    app.run()
+    App().run()
