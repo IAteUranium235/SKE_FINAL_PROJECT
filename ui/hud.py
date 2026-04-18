@@ -397,6 +397,9 @@ class ShopGUI:
             'money_gen':    f'+{10} gold / 5s',
             'back_shooter': 'Shoots behind',
             'barrier':      'No attack | Tank',
+            'laser':        'Pierce all in lane',
+            'bomb':         'AoE 700 on contact',
+            'minigun':      'Rapid fire | Low DMG',
         }
         self.ITEMS = [
             {
@@ -782,6 +785,7 @@ class TowerSelectUI:
                 rotate_y=data['rotate_y'],
                 price=data['price'],
                 special=data.get('special', ''),
+                range=data.get('range', 999),
             )
             self.render.player.tower_inventory[name] -= 1
         self.close()

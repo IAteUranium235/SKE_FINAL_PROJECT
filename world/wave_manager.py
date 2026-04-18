@@ -6,7 +6,7 @@ class WaveManager:
     BETWEEN_DELAY = 8.0   # วินาทีพักระหว่าง wave
     START_DELAY   = 8.0   # วินาทีเตรียมตัวก่อน wave 1
 
-    def __init__(self, render, csv_path='wave_1.csv'):
+    def __init__(self, render, csv_path='data/wave_1.csv'):
         self.render         = render
         self._waves         = {}
         self.total_waves    = 0
@@ -80,15 +80,36 @@ class WaveManager:
                 break
 
         all_spawned = (self._spawn_idx >= len(self._spawn_queue))
-        all_dead    = all(len(lane) == 0 for lane in self.render.enemies)
+        all_dead    = (all(len(lane) == 0 for lane in self.render.enemies)
+                       and len(getattr(self.render, 'bosses', [])) == 0)
         if all_spawned and all_dead:
             if self.current_wave >= self.total_waves:
                 self.finished = True
             else:
+                self._give_wave_bonus()
                 self._between       = True
                 self._between_timer = self.BETWEEN_DELAY
 
+    def _give_wave_bonus(self):
+        bonus = 50 + self.current_wave * 20
+        player = getattr(self.render, 'player', None)
+        if player:
+            player.gold += bonus
+        nums = getattr(self.render, 'damage_numbers', None)
+        if nums is not None:
+            from world.map import BASE_POSITION
+            nums.append({
+                'x': 0.0, 'y': 6.0, 'z': 0.0,
+                'value': bonus, 'timer': 2.0, 'max_timer': 2.0,
+                'gold': True,
+            })
+
     def _spawn(self, entry):
+        if entry['type'].startswith('boss_'):
+            from entities.boss import Boss
+            boss = Boss(self.render, entry['type'])
+            getattr(self.render, 'bosses', []).append(boss)
+            return
         from entities.enemy import make_enemy
         from world.map import SPAWN_POSITION, BASE_POSITION
         sp   = [SPAWN_POSITION[0], 0, 0]

@@ -2,26 +2,60 @@ import pygame as pg
 import json
 import os
 
-SAVE_FILE   = 'save.json'
-TOTAL_LEVELS = 10
+SAVE_DIR      = 'save'
+PROGRESS_FILE = 'save/progress.json'
+SETTINGS_FILE = 'save/settings.json'
+TOTAL_LEVELS  = 10
+
+_DEFAULT_SETTINGS = {
+    'music_vol': 0.7,
+    'sfx_vol':   1.0,
+    'fullscreen': False,
+}
+
+
+def _ensure_save_dir():
+    os.makedirs(SAVE_DIR, exist_ok=True)
 
 
 def load_save():
-    if os.path.exists(SAVE_FILE):
+    if os.path.exists(PROGRESS_FILE):
         try:
-            with open(SAVE_FILE) as f:
+            with open(PROGRESS_FILE) as f:
                 return json.load(f)
         except Exception:
             pass
     return {'unlocked': 1}
 
 
+def save_progress(data):
+    _ensure_save_dir()
+    with open(PROGRESS_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+
+
 def unlock_next_level(current_level):
     data = load_save()
     if current_level >= data['unlocked'] and current_level < TOTAL_LEVELS:
         data['unlocked'] = current_level + 1
-        with open(SAVE_FILE, 'w') as f:
-            json.dump(data, f)
+        save_progress(data)
+
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE) as f:
+                s = json.load(f)
+                return {**_DEFAULT_SETTINGS, **s}
+        except Exception:
+            pass
+    return dict(_DEFAULT_SETTINGS)
+
+
+def save_settings(settings):
+    _ensure_save_dir()
+    with open(SETTINGS_FILE, 'w') as f:
+        json.dump(settings, f, indent=2)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -102,6 +136,8 @@ class MainMenu:
 # Level Select
 # ──────────────────────────────────────────────────────────────
 
+BOSS_LEVELS = {5, 10}
+
 class LevelSelectScreen:
     def __init__(self, screen, W, H):
         self.screen = screen
@@ -109,6 +145,7 @@ class LevelSelectScreen:
         self._tf  = pg.font.SysFont('Arial', 36, bold=True)
         self._lf  = pg.font.SysFont('Arial', 19, bold=True)
         self._lkf = pg.font.SysFont('Arial', 14)
+        self._bf  = pg.font.SysFont('Arial', 12, bold=True)
         bf = pg.font.SysFont('Arial', 20, bold=True)
         self.btn_back = _Btn((20, 20, 110, 38), '< Back', bf, (50,50,60),(80,80,100))
         self._bg = _gradient_bg(W, H)
@@ -142,47 +179,156 @@ class LevelSelectScreen:
         self.screen.blit(title, (self.W//2 - title.get_width()//2, 15))
         mp = pg.mouse.get_pos()
         for i, rect in enumerate(self._rects):
-            lvl = i + 1
-            ok  = lvl <= unlocked
-            hov = ok and rect.collidepoint(mp)
-            col    = (80,130,190) if hov else ((55,85,140) if ok else (32,32,42))
-            border = (220,220,220) if ok else (65,65,75)
+            lvl    = i + 1
+            ok     = lvl <= unlocked
+            hov    = ok and rect.collidepoint(mp)
+            is_boss = lvl in BOSS_LEVELS
+
+            if is_boss:
+                col    = (160, 60, 60) if hov else ((110, 30, 30) if ok else (32,32,42))
+                border = (255, 80, 80) if ok else (65, 65, 75)
+            else:
+                col    = (80,130,190) if hov else ((55,85,140) if ok else (32,32,42))
+                border = (220,220,220) if ok else (65,65,75)
+
             pg.draw.rect(self.screen, col,    rect, border_radius=10)
             pg.draw.rect(self.screen, border, rect, 2, border_radius=10)
+
             if ok:
-                t = self._lf.render(f'Level {lvl}', True, (255, 255, 255))
-                self.screen.blit(t, t.get_rect(center=rect.center))
+                label = f'Level {lvl}'
+                tc    = (255, 200, 200) if is_boss else (255, 255, 255)
+                t = self._lf.render(label, True, tc)
+                if is_boss:
+                    tag = self._bf.render('☠ BOSS', True, (255, 80, 80))
+                    self.screen.blit(t,   t.get_rect(centerx=rect.centerx, centery=rect.centery - 11))
+                    self.screen.blit(tag, tag.get_rect(centerx=rect.centerx, centery=rect.centery + 12))
+                else:
+                    self.screen.blit(t, t.get_rect(center=rect.center))
             else:
-                t    = self._lf.render(f'Level {lvl}', True, (65, 65, 75))
-                lock = self._lkf.render('Locked', True, (65, 65, 75))
+                tc   = (90, 30, 30) if is_boss else (65, 65, 75)
+                t    = self._lf.render(f'Level {lvl}', True, tc)
+                lock = self._lkf.render('Locked', True, tc)
                 self.screen.blit(t,    t.get_rect(centerx=rect.centerx, centery=rect.centery-12))
                 self.screen.blit(lock, lock.get_rect(centerx=rect.centerx, centery=rect.centery+13))
         self.btn_back.draw(self.screen)
 
 
 # ──────────────────────────────────────────────────────────────
-# Settings (placeholder)
+# Settings
 # ──────────────────────────────────────────────────────────────
 
 class SettingsScreen:
+    _ROWS = [
+        ('music_vol', 'Music Volume'),
+        ('sfx_vol',   'SFX Volume'),
+    ]
+    _SLIDER_W = 260
+    _SLIDER_H = 14
+
     def __init__(self, screen, W, H):
-        self.screen = screen
+        self.screen   = screen
         self.W, self.H = W, H
         self._tf  = pg.font.SysFont('Arial', 36, bold=True)
-        self._inf = pg.font.SysFont('Arial', 22)
+        self._lf  = pg.font.SysFont('Arial', 20, bold=True)
+        self._sf  = pg.font.SysFont('Arial', 16)
         bf = pg.font.SysFont('Arial', 20, bold=True)
         self.btn_back = _Btn((20, 20, 110, 38), '< Back', bf, (50,50,60),(80,80,100))
-        self._bg = _gradient_bg(W, H)
+        self._bg      = _gradient_bg(W, H)
+        self._settings  = load_settings()
+        self._dragging  = None   # key being dragged
+
+    # ── layout helpers ────────────────────────────────────────
+
+    def _row_y(self, idx):
+        return self.H // 2 - 60 + idx * 70
+
+    def _slider_rect(self, idx):
+        x = self.W // 2 - self._SLIDER_W // 2
+        y = self._row_y(idx) + 28
+        return pg.Rect(x, y, self._SLIDER_W, self._SLIDER_H)
+
+    def _toggle_rect(self):
+        w, h = 60, 30
+        return pg.Rect(self.W // 2 - w // 2, self._row_y(len(self._ROWS)) + 20, w, h)
+
+    # ── event handling ────────────────────────────────────────
 
     def handle_event(self, event):
         if self.btn_back.clicked(event):
+            save_settings(self._settings)
             return 'back'
+
+        # slider drag start
+        if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+            for i, (key, _) in enumerate(self._ROWS):
+                if self._slider_rect(i).collidepoint(event.pos):
+                    self._dragging = (i, key)
+                    self._set_from_mouse(i, key, event.pos[0])
+                    return None
+            if self._toggle_rect().collidepoint(event.pos):
+                self._settings['fullscreen'] = not self._settings['fullscreen']
+                return None
+
+        if event.type == pg.MOUSEBUTTONUP and event.button == 1:
+            if self._dragging:
+                save_settings(self._settings)
+            self._dragging = None
+
+        if event.type == pg.MOUSEMOTION and self._dragging:
+            i, key = self._dragging
+            self._set_from_mouse(i, key, event.pos[0])
+
         return None
+
+    def _set_from_mouse(self, idx, key, mx):
+        r = self._slider_rect(idx)
+        val = (mx - r.x) / r.w
+        self._settings[key] = max(0.0, min(1.0, val))
+
+    # ── draw ──────────────────────────────────────────────────
 
     def draw(self):
         self.screen.blit(self._bg, (0, 0))
         title = self._tf.render('Settings', True, (255, 220, 80))
-        self.screen.blit(title, (self.W//2 - title.get_width()//2, 15))
-        msg = self._inf.render('(Coming soon)', True, (150, 150, 150))
-        self.screen.blit(msg, (self.W//2 - msg.get_width()//2, self.H//2 - 15))
+        self.screen.blit(title, (self.W // 2 - title.get_width() // 2, 15))
+
+        for i, (key, label) in enumerate(self._ROWS):
+            y    = self._row_y(i)
+            val  = self._settings.get(key, 1.0)
+            rect = self._slider_rect(i)
+
+            lbl = self._lf.render(label, True, (220, 220, 220))
+            self.screen.blit(lbl, (self.W // 2 - lbl.get_width() // 2, y))
+
+            # track
+            pg.draw.rect(self.screen, (60, 60, 80), rect, border_radius=7)
+            # fill
+            fill = pg.Rect(rect.x, rect.y, int(rect.w * val), rect.h)
+            pg.draw.rect(self.screen, (80, 160, 220), fill, border_radius=7)
+            # border
+            pg.draw.rect(self.screen, (140, 140, 180), rect, 2, border_radius=7)
+            # handle
+            hx = rect.x + int(rect.w * val)
+            pg.draw.circle(self.screen, (220, 220, 255), (hx, rect.centery), 10)
+            pg.draw.circle(self.screen, (180, 180, 220), (hx, rect.centery), 10, 2)
+
+            pct = self._sf.render(f'{int(val*100)}%', True, (180, 220, 180))
+            self.screen.blit(pct, (rect.right + 10, rect.centery - pct.get_height() // 2))
+
+        # fullscreen toggle
+        fy   = self._row_y(len(self._ROWS))
+        flbl = self._lf.render('Fullscreen', True, (220, 220, 220))
+        self.screen.blit(flbl, (self.W // 2 - flbl.get_width() // 2, fy))
+        trect = self._toggle_rect()
+        fs_on = self._settings.get('fullscreen', False)
+        pg.draw.rect(self.screen, (60, 160, 60) if fs_on else (80, 40, 40), trect, border_radius=15)
+        pg.draw.rect(self.screen, (180, 180, 180), trect, 2, border_radius=15)
+        knob_x = trect.right - 18 if fs_on else trect.left + 18
+        pg.draw.circle(self.screen, (240, 240, 240), (knob_x, trect.centery), 11)
+        st = self._sf.render('ON' if fs_on else 'OFF', True, (255,255,255))
+        self.screen.blit(st, st.get_rect(center=trect.center))
+
+        hint = self._sf.render('Settings are saved automatically', True, (110, 110, 130))
+        self.screen.blit(hint, (self.W // 2 - hint.get_width() // 2, self.H - 40))
+
         self.btn_back.draw(self.screen)

@@ -38,7 +38,8 @@ class SoftwareRender:
         self.camera     = Camera(self, [0, 5, -10])
         self.projection = Projection(self)
         self.player     = Player(self, PLAYER_SPAWN)
-        self.base_png = Billboard(self, 'base.png',[BASE_POSITION[0],4,BASE_POSITION[2]],20,20)
+        self.player.gold = 150 + self.level * 50   # level 1→200, level 10→650
+        self.base_png = Billboard(self, 'image/base.png',[BASE_POSITION[0],4,BASE_POSITION[2]],20,20)
         self.map        = Map(self)
         #tower1 = Tower(self,filepath='resource/Turret.obj', col=2, row=2)
         self.placement_grid = [
@@ -75,7 +76,7 @@ class SoftwareRender:
         #        )
                 
         # self.billboards.append(Billboard(self, "cat.jpg", [0, 1, 0]))
-        self.billboards.append(Billboard(self, "shopkeepe.png", [0, 1, -20], width=7, height=7))
+        self.billboards.append(Billboard(self, "image/shopkeepe.png", [0, 1, -20], width=7, height=7))
         self._sky_surface = self._build_sky_surface()
 
         self.shop_gui   = ShopGUI(self)
@@ -96,12 +97,16 @@ class SoftwareRender:
         self.crosshair       = Crosshair(self)
         self.pause_menu      = PauseMenu(self)
         self.damage_numbers   = []
+        self._passive_timer   = 0.0
+        self.bosses           = []
+        self._boss_font       = pg.font.SysFont('Arial', 18, bold=True)
         self.base_hp          = 300
         self.base_max_hp      = 300
         self.game_over_screen = GameOverScreen(self)
         self.victory_screen   = VictoryScreen(self)
         self.tower_select_ui  = TowerSelectUI(self)
-        self.wave_manager     = WaveManager(self)
+        _wave_csv = f'data/wave_{self.level}.csv'
+        self.wave_manager     = WaveManager(self, csv_path=_wave_csv)
         self.wave_manager.start()
 
     def _build_sky_surface(self):
@@ -176,7 +181,8 @@ class SoftwareRender:
         for row in self.enemies:
             for e in row:
                 e.update(self.dt)
-            # e.push_to_pool(cam_mat)
+        for boss in list(self.bosses):
+            boss.update(self.dt)
             
         # ground collision y=0
         feet_y = self.player.position[1] - 1.5
@@ -193,6 +199,18 @@ class SoftwareRender:
         self.shop_gui.update(self.dt)
         self.tower_select_ui.update(self.dt)
         self.wave_manager.update(self.dt)
+
+        self._passive_timer += self.dt
+        if self._passive_timer >= 10.0:
+            self._passive_timer -= 10.0
+            self.player.gold += 15
+            self.damage_numbers.append({
+                'x': self.player.position[0],
+                'y': self.player.position[1] + 3.0,
+                'z': self.player.position[2],
+                'value': 15, 'timer': 1.5, 'max_timer': 1.5,
+                'gold': True,
+            })
         _ui_open = (self.shop_gui.is_open or self.game_over_screen.is_open
                     or self.victory_screen.is_open
                     or self.tower_select_ui.any_open)
@@ -246,8 +264,9 @@ class SoftwareRender:
         self.polygon_pool.clear()
         for row in self.enemies:
             for e in row:
-                e.push_to_pool()           
-        # self.boss.draw()  
+                e.push_to_pool()
+        for boss in self.bosses:
+            boss.push_to_pool()
         for row in self.placement_grid:
             for turret in row:
                 if turret:
@@ -271,6 +290,8 @@ class SoftwareRender:
         self._draw_base_hp_bar()
         self._draw_gold_hud()
         self.wave_manager.draw_hud(self.screen)
+        for boss in self.bosses:
+            boss.draw_boss_hud(self.screen, self._boss_font)
         if self.pause_menu.is_open:
             self.pause_menu.draw()
         self.shop_gui.draw()
@@ -339,7 +360,10 @@ class SoftwareRender:
             if sx < -60 or sx > self.WIDTH + 60 or sy < -30 or sy > self.HEIGHT + 30:
                 continue
             alpha = int(255 * (dn['timer'] / dn['max_timer']))
-            surf  = self._dmg_font.render(f'-{dn["value"]}', True, (255, 80, 80))
+            if dn.get('gold'):
+                surf = self._dmg_font.render(f'+{dn["value"]}g', True, (255, 215, 0))
+            else:
+                surf = self._dmg_font.render(f'-{dn["value"]}', True, (255, 80, 80))
             surf.set_alpha(alpha)
             self.screen.blit(surf, (sx - surf.get_width() // 2, sy - surf.get_height() // 2))
         self.damage_numbers = alive
@@ -396,7 +420,8 @@ class SoftwareRender:
                 if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
                     if (not self.tower_select_ui.any_open
                             and not self.tower_select_ui._click_consumed
-                            and not self.shop_gui.is_open):
+                            and not self.shop_gui.is_open
+                            and not self.pause_menu.is_open):
                         item = self.inventory.current
                         if hasattr(item, 'handle_click'):
                             item.handle_click()

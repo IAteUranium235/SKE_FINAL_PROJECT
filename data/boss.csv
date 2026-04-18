@@ -1,0 +1,3 @@
+name,phases,hp,img_path,width,height,y_offset,summon_limit
+boss_3phase,3,9000,image/boss.png,40.0,20.0,0.5,15
+boss_5phase,5,18000,image/boss.png,40.0,20.0,0.5,25

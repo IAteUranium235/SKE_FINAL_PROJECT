@@ -7,7 +7,7 @@ from world.map import GRID_ORIGIN_Z, CELL_SIZE, GRID_ROWS
 
 _ENEMY_DATA = {}
 
-def load_enemy_data(csv_path='enemy.csv'):
+def load_enemy_data(csv_path='data/enemy.csv'):
     global _ENEMY_DATA
     _ENEMY_DATA = {}
     try:
@@ -118,14 +118,19 @@ class Enemy:
         self.SPAWN_INTERVAL  = 7.0
         # portal_dog
         self._teleported     = False
-        self._portal_img2    = None   # โหลดล่วงหน้า
+        self._portal_img2    = None
+        # chick (egg → chicken)
+        self._chick_transformed = False
+        self._chick_img2        = None
 
         # sprite
         self._image = None
         if image_path:
             self._image = self._load_image(image_path)
         if self.special == 'portal_dog':
-            self._portal_img2 = self._load_image('portal_dog_2.png')
+            self._portal_img2 = self._load_image('image/portal_dog_2.png')
+        if self.special == 'chick':
+            self._chick_img2 = self._load_image('image/chick.png')
 
     def _load_image(self, path):
         try:
@@ -194,6 +199,23 @@ class Enemy:
                 del self._cached_surf
                 del self._cached_size
 
+    def _transform_chick(self):
+        """ไข่ฟักเป็นไก่ — เปลี่ยน sprite + เพิ่มความเร็ว + รีเซ็ต HP ใหม่"""
+        CHICK_HP    = 150
+        CHICK_SPEED = 0.07
+        self._chick_transformed = True
+        self.hp          = CHICK_HP
+        self.max_hp      = CHICK_HP
+        self.walk_speed  = CHICK_SPEED
+        self.stopped     = False
+        self.width       = 2.5
+        self.height      = 2.5
+        if self._chick_img2:
+            self._image = self._chick_img2
+        if hasattr(self, '_cached_surf'):
+            del self._cached_surf
+            del self._cached_size
+
     def _move_toward_waypoint(self, dt):
         target = self.waypoints[self.wp_index]
         dx = target[0] - self.position[0]
@@ -209,6 +231,9 @@ class Enemy:
         self.distance_walked += speed
 
     def _check_tower_ahead(self):
+        if self.special == 'white_eye':
+            self.stopped = False
+            return
         grid = getattr(self.render, 'placement_grid', None)
         if grid is None:
             return
@@ -285,7 +310,10 @@ class Enemy:
             })
         if self.hp <= 0:
             self.hp = 0
-            self.die()
+            if self.special == 'chick' and not self._chick_transformed:
+                self._transform_chick()
+            else:
+                self.die()
 
     def die(self):
         self.alive = False

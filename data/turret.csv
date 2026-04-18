@@ -1,0 +1,10 @@
+name,file_path,offset_x,offset_y,offset_z,rotate_y,hp,damage,fire_rate,range,price,special
+normal,resource/Turret.obj,0.0,0.0,0.0,1.5708,100,20,1.0,30,50,
+rapid,resource/Rapid_Turret.obj,0.0,0.0,0.0,1.5708,80,10,3.0,24,100,
+big,resource/Big_Turret.obj,0.0,0.0,0.0,1.5708,200,50,0.5,36,200,
+money_gen,resource/Money_Gen.obj,0.0,0.0,0.0,1.5708,80,0,0.0,0,75,money_gen
+back_shooter,resource/Turret.obj,0.0,0.0,0.0,-1.5708,100,25,1.0,50,75,back_shooter
+barrier,resource/barrier.obj,0.0,0.0,0.0,1.5708,600,0,0.0,0,100,barrier
+laser,resource/Turret_Laser.obj,0.0,0.0,0.0,1.5708,150,15,1.5,30,120,laser
+bomb,resource/Bomb.obj,0.0,0.0,0.0,1.5708,1,0,0.0,0,80,bomb
+minigun,resource/Turret_Minigun.obj,0.0,0.0,0.0,1.5708,60,5,10.0,18,150,minigun
