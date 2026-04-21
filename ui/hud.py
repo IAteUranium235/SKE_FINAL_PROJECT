@@ -506,6 +506,11 @@ class ShopGUI:
         inv[item['name']] = inv.get(item['name'], 0) + 1
         self._msg       = f"Got {item['name']}! (x{inv[item['name']]})"
         self._msg_timer = 2.0
+        stats = getattr(self.render, 'stats', None)
+        if stats:
+            wave = getattr(getattr(self.render, 'wave_manager', None), 'current_wave', 0)
+            stats.record_tower_buy(item['name'], wave)
+            stats.record_currency('spend_tower', item['price'], wave)
 
     def update(self, dt):
         if self._msg_timer > 0:

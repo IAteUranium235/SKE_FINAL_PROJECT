@@ -160,6 +160,11 @@ class Boss:
         player = getattr(self.render, 'player', None)
         if player:
             player.gold += 500
+        # ล้าง enemy ทั้งหมดทันที → wave_manager ตรวจ all_dead → victory
+        enemies = getattr(self.render, 'enemies', None)
+        if enemies:
+            for lane in enemies:
+                lane.clear()
 
     # ── render ────────────────────────────────────────────────────────
 

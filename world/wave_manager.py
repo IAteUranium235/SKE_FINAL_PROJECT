@@ -53,6 +53,10 @@ class WaveManager:
         self._between     = False
         entries = self._waves.get(self.current_wave, [])
         self._spawn_queue = sorted(entries, key=lambda e: e['time'])
+        audio = getattr(self.render, 'audio', None)
+        if audio:
+            is_boss = getattr(self.render, '_is_boss_level', False)
+            audio.on_wave_start(self.current_wave, self.total_waves, is_boss)
 
     # ── update ────────────────────────────────────────────────────
 
@@ -83,6 +87,10 @@ class WaveManager:
         all_dead    = (all(len(lane) == 0 for lane in self.render.enemies)
                        and len(getattr(self.render, 'bosses', [])) == 0)
         if all_spawned and all_dead:
+            stats = getattr(self.render, 'stats', None)
+            if stats:
+                stats.record_wave_end(self.current_wave,
+                                      getattr(self.render, 'base_hp', 0))
             if self.current_wave >= self.total_waves:
                 self.finished = True
             else:
@@ -95,6 +103,9 @@ class WaveManager:
         player = getattr(self.render, 'player', None)
         if player:
             player.gold += bonus
+        stats = getattr(self.render, 'stats', None)
+        if stats:
+            stats.record_currency('earn_wave_bonus', bonus, self.current_wave)
         nums = getattr(self.render, 'damage_numbers', None)
         if nums is not None:
             from world.map import BASE_POSITION

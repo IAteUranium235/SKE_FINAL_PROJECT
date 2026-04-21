@@ -105,13 +105,14 @@ class MainMenu:
         bf = pg.font.SysFont('Arial', 26, bold=True)
         cx   = W // 2
         bw, bh, gap = 200, 50, 16
-        sy = H // 2 - (3*bh + 2*gap) // 2 + 50
+        sy = H // 2 - (4*bh + 3*gap) // 2 + 50
         self._btns = [
-            _Btn((cx-bw//2, sy,            bw, bh), 'Play',     bf, (45,95,155), (75,135,210)),
-            _Btn((cx-bw//2, sy+bh+gap,     bw, bh), 'Settings', bf, (55,65,85),  (85,100,130)),
-            _Btn((cx-bw//2, sy+2*(bh+gap), bw, bh), 'Exit',     bf, (105,38,38), (165,55,55)),
+            _Btn((cx-bw//2, sy,            bw, bh), 'Play',     bf, (45,95,155),  (75,135,210)),
+            _Btn((cx-bw//2, sy+bh+gap,     bw, bh), 'Tutorial', bf, (40,110,80),  (60,160,110)),
+            _Btn((cx-bw//2, sy+2*(bh+gap), bw, bh), 'Settings', bf, (55,65,85),   (85,100,130)),
+            _Btn((cx-bw//2, sy+3*(bh+gap), bw, bh), 'Exit',     bf, (105,38,38),  (165,55,55)),
         ]
-        self._actions = ['play', 'settings', 'exit']
+        self._actions = ['play', 'tutorial', 'settings', 'exit']
         self._title_surf   = tf.render('Tower Defense', True, (255, 220, 80))
         self._title_shadow = tf.render('Tower Defense', True, (0, 0, 0))
         self._bg = _gradient_bg(W, H)
@@ -130,6 +131,89 @@ class MainMenu:
         self.screen.blit(self._title_surf,   (tx,   ty))
         for btn in self._btns:
             btn.draw(self.screen)
+
+
+# ──────────────────────────────────────────────────────────────
+# Tutorial
+# ──────────────────────────────────────────────────────────────
+
+class TutorialScreen:
+    IMG_DIR = 'image/tutorial'
+
+    def __init__(self, screen, W, H):
+        self.screen = screen
+        self.W, self.H = W, H
+        self._index  = 0
+        self._images = []
+        self._bg     = _gradient_bg(W, H)
+        bf = pg.font.SysFont('Arial', 20, bold=True)
+        sf = pg.font.SysFont('Arial', 16)
+        self._font_page = sf
+        self.btn_back  = _Btn((20,  20, 110, 38), '< Back', bf, (50,50,60), (80,80,100))
+        self.btn_prev  = _Btn((20,  H//2-19, 44, 38), '<',    bf, (50,70,50), (80,120,80))
+        self.btn_next  = _Btn((W-64, H//2-19, 44, 38), '>',   bf, (50,70,50), (80,120,80))
+        self._load_images()
+
+    def _load_images(self):
+        self._images = []
+        try:
+            files = sorted(
+                [f for f in os.listdir(self.IMG_DIR)
+                 if f.lower().endswith(('.png', '.jpg', '.jpeg'))],
+                key=lambda x: int(os.path.splitext(x)[0]) if os.path.splitext(x)[0].isdigit() else x
+            )
+            for fname in files:
+                try:
+                    img = pg.image.load(os.path.join(self.IMG_DIR, fname)).convert()
+                    self._images.append(img)
+                except Exception as e:
+                    print(f'[Tutorial] load failed {fname}: {e}')
+        except FileNotFoundError:
+            print('[Tutorial] tutorial folder not found')
+
+    def _scaled(self):
+        if not self._images:
+            return None
+        img = self._images[self._index]
+        iw, ih = img.get_size()
+        max_w = self.W - 120
+        max_h = self.H - 100
+        scale = min(max_w / iw, max_h / ih, 1.0)
+        nw, nh = int(iw * scale), int(ih * scale)
+        return pg.transform.smoothscale(img, (nw, nh))
+
+    def handle_event(self, event):
+        if self.btn_back.clicked(event):
+            self._index = 0
+            return 'back'
+        if self._images:
+            if self.btn_prev.clicked(event):
+                self._index = (self._index - 1) % len(self._images)
+            if self.btn_next.clicked(event):
+                self._index = (self._index + 1) % len(self._images)
+            if event.type == pg.KEYDOWN:
+                if event.key in (pg.K_LEFT, pg.K_a):
+                    self._index = (self._index - 1) % len(self._images)
+                if event.key in (pg.K_RIGHT, pg.K_d):
+                    self._index = (self._index + 1) % len(self._images)
+        return None
+
+    def draw(self):
+        self.screen.blit(self._bg, (0, 0))
+        surf = self._scaled()
+        if surf:
+            x = self.W // 2 - surf.get_width() // 2
+            y = self.H // 2 - surf.get_height() // 2 + 10
+            self.screen.blit(surf, (x, y))
+            page = self._font_page.render(
+                f'{self._index + 1} / {len(self._images)}', True, (200, 200, 200))
+            self.screen.blit(page, (self.W // 2 - page.get_width() // 2, self.H - 28))
+        else:
+            msg = self._font_page.render('No tutorial images found', True, (180, 80, 80))
+            self.screen.blit(msg, (self.W // 2 - msg.get_width() // 2, self.H // 2))
+        self.btn_back.draw(self.screen)
+        self.btn_prev.draw(self.screen)
+        self.btn_next.draw(self.screen)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -225,7 +309,7 @@ class SettingsScreen:
     _SLIDER_W = 260
     _SLIDER_H = 14
 
-    def __init__(self, screen, W, H):
+    def __init__(self, screen, W, H, audio=None, on_fullscreen=None):
         self.screen   = screen
         self.W, self.H = W, H
         self._tf  = pg.font.SysFont('Arial', 36, bold=True)
@@ -234,8 +318,10 @@ class SettingsScreen:
         bf = pg.font.SysFont('Arial', 20, bold=True)
         self.btn_back = _Btn((20, 20, 110, 38), '< Back', bf, (50,50,60),(80,80,100))
         self._bg      = _gradient_bg(W, H)
-        self._settings  = load_settings()
-        self._dragging  = None   # key being dragged
+        self._settings      = load_settings()
+        self._dragging      = None
+        self._audio         = audio
+        self._on_fullscreen = on_fullscreen
 
     # ── layout helpers ────────────────────────────────────────
 
@@ -267,6 +353,9 @@ class SettingsScreen:
                     return None
             if self._toggle_rect().collidepoint(event.pos):
                 self._settings['fullscreen'] = not self._settings['fullscreen']
+                save_settings(self._settings)
+                if self._on_fullscreen:
+                    self._on_fullscreen(self._settings['fullscreen'])
                 return None
 
         if event.type == pg.MOUSEBUTTONUP and event.button == 1:
@@ -284,6 +373,11 @@ class SettingsScreen:
         r = self._slider_rect(idx)
         val = (mx - r.x) / r.w
         self._settings[key] = max(0.0, min(1.0, val))
+        if self._audio:
+            self._audio.set_volumes(
+                self._settings.get('music_vol', 0.7),
+                self._settings.get('sfx_vol', 1.0),
+            )
 
     # ── draw ──────────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 import pygame as pg
 from entities.tower import Tower
 from core.matrix_function import *
+from ui.game_renderer import flush_pool
 
 
 class Wrench:
@@ -36,8 +37,7 @@ class Wrench:
         if not self.equipped:
             return
         self._obj.draw()
-        self.render._flush_pool()
-        #self.render.polygon_pool.clear()
+        flush_pool(self.render)
 
     def draw_hud(self, screen):
         pass

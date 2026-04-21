@@ -141,6 +141,9 @@ class Tower:
 
         target = max(all_targets, key=lambda e: e.distance_walked)
         target.take_damage(self.damage)
+        audio = getattr(self.render, 'audio', None)
+        if audio:
+            audio.play_sfx('sfx_bullet')
 
     def _fire_laser(self):
         """ยิงโดนทุก enemy ในแถวเดียวกันที่อยู่ด้านหน้าภายใน range"""

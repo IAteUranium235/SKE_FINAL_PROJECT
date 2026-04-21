@@ -3,6 +3,7 @@ import numpy as np
 import math
 import csv
 import random
+import time
 from world.map import GRID_ORIGIN_Z, CELL_SIZE, GRID_ROWS
 
 _ENEMY_DATA = {}
@@ -37,7 +38,7 @@ def make_enemy(render, enemy_type, position, waypoints, lane):
     data = get_enemy_types().get(enemy_type)
     if data is None:
         raise ValueError(f'Unknown enemy type: {enemy_type}')
-    return Enemy(
+    e = Enemy(
         render,
         position=position,
         waypoints=waypoints,
@@ -51,6 +52,9 @@ def make_enemy(render, enemy_type, position, waypoints, lane):
         lane=lane,
         special=data.get('special', ''),
     )
+    e.enemy_type  = enemy_type
+    e._spawn_time = time.time()
+    return e
 
 
 class Enemy:
@@ -325,6 +329,13 @@ class Enemy:
             lane_list = enemies[self.lane]
             if self in lane_list:
                 lane_list.remove(self)
+        stats = getattr(self.render, 'stats', None)
+        if stats:
+            wave     = getattr(getattr(self.render, 'wave_manager', None), 'current_wave', 0)
+            lifespan = time.time() - getattr(self, '_spawn_time', time.time())
+            etype    = getattr(self, 'enemy_type', 'unknown')
+            stats.record_enemy_killed(etype, wave, lifespan)
+            stats.record_currency('earn_kill', self.reward, wave)
 
     # =========================================================
     # DRAW (billboard + HP bar)

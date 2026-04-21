@@ -1,0 +1,9 @@
+name,audio_path,loudness
+stx_normal_wave_start,music/stx_first_part.mp3,0.7
+stx_normal_wave_loop,music/stx_loop_part.mp3,0.7
+stx_normal_wave_end,music/stx_end_part.mp3,0.7
+last_wave,music/stx_end_wave.mp3,0.8
+stx_boss,music/stx_boss.mp3,0.8
+stx_menu,music/stx__game.mp3,0.6
+sfx_bullet,music/bullet-impacting.mp3,1.0
+sfx_win,music/level-complete.mp3,0.9
