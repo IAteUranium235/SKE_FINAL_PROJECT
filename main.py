@@ -267,7 +267,12 @@ class App:
     def __init__(self):
         pg.init()
         pg.mixer.init()
-        pg.display.set_caption('Tower Defense 3D')
+        pg.display.set_caption('Game that better than roblox')
+        try:
+            icon = pg.image.load('image/game_Icon.png')
+            pg.display.set_icon(icon)
+        except Exception:
+            pass
         settings = load_settings()
         flags = (pg.FULLSCREEN | pg.SCALED) if settings.get('fullscreen', False) else pg.SCALED
         self.screen = pg.display.set_mode((self.W, self.H), flags)

@@ -113,9 +113,13 @@ class MainMenu:
             _Btn((cx-bw//2, sy+3*(bh+gap), bw, bh), 'Exit',     bf, (105,38,38),  (165,55,55)),
         ]
         self._actions = ['play', 'tutorial', 'settings', 'exit']
-        self._title_surf   = tf.render('Tower Defense', True, (255, 220, 80))
-        self._title_shadow = tf.render('Tower Defense', True, (0, 0, 0))
-        self._bg = _gradient_bg(W, H)
+        self._title_surf   = tf.render('Better game than roblox', True, (255, 220, 80))
+        self._title_shadow = tf.render('Better game than roblox', True, (0, 0, 0))
+        try:
+            raw = pg.image.load('image/Title_bg.png').convert()
+            self._bg = pg.transform.scale(raw, (W, H))
+        except Exception:
+            self._bg = _gradient_bg(W, H)
 
     def handle_event(self, event):
         for btn, action in zip(self._btns, self._actions):
