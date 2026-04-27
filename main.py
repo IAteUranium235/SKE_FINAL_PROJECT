@@ -267,7 +267,7 @@ class App:
     def __init__(self):
         pg.init()
         pg.mixer.init()
-        pg.display.set_caption('Game that better than roblox')
+        pg.display.set_caption('Tower Defence 3D')
         try:
             icon = pg.image.load('image/game_Icon.png')
             pg.display.set_icon(icon)
